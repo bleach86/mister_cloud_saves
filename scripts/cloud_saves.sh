@@ -27,7 +27,7 @@ import shutil
 import time
 import requests  # type: ignore
 
-DEFAULT_SERVER_URL = "http://192.168.12.79:8000"
+DEFAULT_SERVER_URL = "https://mister-cloud-saves.tuxprint.com"
 MISTER_PATH = "/media/fat"
 DOWNLOAD_URL_BASE = "https://github.com/bleach86/mister_cloud_saves"
 DOWNLOAD_URL = f"{DOWNLOAD_URL_BASE}/releases/download/latest/client.tar.xz"
