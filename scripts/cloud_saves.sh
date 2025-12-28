@@ -30,7 +30,6 @@ import requests  # type: ignore
 DEFAULT_SERVER_URL = "https://mister-cloud-saves.tuxprint.com"
 MISTER_PATH = "/media/fat"
 DOWNLOAD_URL_BASE = "https://github.com/bleach86/mister_cloud_saves"
-DOWNLOAD_URL = f"{DOWNLOAD_URL_BASE}/releases/download/latest/client.tar.xz"
 CLIENT_DIR = os.path.join(MISTER_PATH, "cloud_saves")
 MISTER_LINUX_DIR = os.path.join(MISTER_PATH, "linux/")
 
@@ -147,16 +146,38 @@ def is_client_installed():
     return os.path.isfile(client_bin) and os.path.isfile(ini_file)
 
 
+def get_latest_release_url():
+    """
+    Gets the latest release download URL from GitHub.
+
+    :return: Download URL string
+    """
+
+    api_url = "https://api.github.com/repos/bleach86/mister_cloud_saves/releases/latest"
+    response = requests.get(api_url, timeout=30)
+    if response.status_code == 200:
+        data = response.json()
+        for asset in data.get("assets", []):
+            if asset.get("name") == "client.tar.xz":
+                return asset.get("browser_download_url")
+
+    print("Error fetching latest release info")
+    sys.exit(1)
+
+
 def fetch_client():
     """
     Downloads the Mister Cloud Saves Client.
     """
     print("Downloading Mister Cloud Saves Client...")
 
-    response = requests.get(DOWNLOAD_URL, timeout=30)
+    download_url = get_latest_release_url()
+
+    response = requests.get(download_url, timeout=30)
     if response.status_code == 200:
         with open(
-            os.path.join("/tmp", "client.tar.xz"), "wb", encoding="utf-8"
+            os.path.join("/tmp", "client.tar.xz"),
+            "wb",
         ) as file:
             file.write(response.content)
     else:
