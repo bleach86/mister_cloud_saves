@@ -1,0 +1,6 @@
+/target
+/user_saves_sled
+/user_saves/*
+/.mypy_cache/
+
+!/user_saves/.gitkeep
