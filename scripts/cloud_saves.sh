@@ -28,8 +28,10 @@ import time
 import requests  # type: ignore
 
 DEFAULT_SERVER_URL = "https://mister-cloud-saves.tuxprint.com"
+GH_REPO_API_URL = (
+    "https://api.github.com/repos/bleach86/mister_cloud_saves/releases/latest"
+)
 MISTER_PATH = "/media/fat"
-DOWNLOAD_URL_BASE = "https://github.com/bleach86/mister_cloud_saves"
 CLIENT_DIR = os.path.join(MISTER_PATH, "cloud_saves")
 MISTER_LINUX_DIR = os.path.join(MISTER_PATH, "linux/")
 
@@ -153,8 +155,7 @@ def get_latest_release_url():
     :return: Download URL string
     """
 
-    api_url = "https://api.github.com/repos/bleach86/mister_cloud_saves/releases/latest"
-    response = requests.get(api_url, timeout=30)
+    response = requests.get(GH_REPO_API_URL, timeout=30)
     if response.status_code == 200:
         data = response.json()
         for asset in data.get("assets", []):
