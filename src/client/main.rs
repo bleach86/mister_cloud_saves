@@ -620,7 +620,7 @@ async fn process_category(
                             );
                         } else {
                             // Force Local: Remote is newer, but we want local.
-                            // Bump local index to Remote + 1 so next sync remote accepts it.
+                            // Bump local index to Remote + 1 so next sync other clients accepts it.
                             let new_idx = remote.modified_index + 1;
                             if let Some(l_mut) = local_saves.get_mut(&key) {
                                 l_mut.modified_index = new_idx;
@@ -978,6 +978,8 @@ pub async fn update_save_map() {
             }
         }
     }
+    existing_map.game_saves.retain(|k, _| saves.contains_key(k));
+
     for (k, v) in save_states.iter() {
         if !existing_map.save_states.contains_key(k) {
             existing_map.save_states.insert(k.clone(), v.clone());
@@ -990,6 +992,9 @@ pub async fn update_save_map() {
             }
         }
     }
+    existing_map
+        .save_states
+        .retain(|k, _| save_states.contains_key(k));
 
     result.game_saves = existing_map.game_saves;
     result.save_states = existing_map.save_states;
