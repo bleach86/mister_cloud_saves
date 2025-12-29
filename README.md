@@ -1,4 +1,4 @@
-# Mister Cloud Saves
+# MiSTer Cloud Saves
 
 A utility to sync MiSTer FPGA save files with a cloud server.
 
@@ -13,6 +13,8 @@ A utility to sync MiSTer FPGA save files with a cloud server.
 ## Installation
 
 Grab the [`cloud_saves.sh`](https://github.com/bleach86/mister_cloud_saves/blob/main/scripts/cloud_saves.sh) file from the `scripts` directory in this repository and place it in the `Scripts` folder of your MiSTer FPGA's SD card.
+
+Make sure to make a backup of your saves and savestates directories before proceeding!
 
 Boot up your MiSTer. From the MiSTer menu:
 
@@ -71,6 +73,68 @@ To update to the latest version, simply run the `cloud_saves` script again from 
 ## Uninstallation
 
 To uninstall the `mister_save_client`, run the `cloud_saves` script from the MiSTer menu and choose the uninstall option. This will remove the client and all associated files from your MiSTer SD card.
+
+# Building and Running Your Own Server
+
+This project requires Rust and Cargo to build. You can find installation instructions for Rust [here](https://www.rust-lang.org/tools/install).
+This project also requires C toolchain for building some dependencies. Make sure you have a C compiler installed (e.g., `gcc` or `clang`).
+
+```bash
+sudo apt install build-essential pkg-config libssl-dev perl make libipc-run-perl # For Debian/Ubuntu
+sudo dnf install @development-tools pkgconfig openssl-devel perl-core perl-ExtUtils-MakeMaker perl-IPC-Cmd # For Fedora
+```
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/bleach86/mister_cloud_saves.git
+   cd mister_cloud_saves
+   ```
+
+2. Build the server:
+
+   ```bash
+   cargo build --release --bin=mister_save_server --features=server
+   ```
+
+3. Run the server:
+
+   ```bash
+    ./target/release/mister_save_server
+   ```
+
+   or
+
+   ```bash
+    cargo run --release --bin=mister_save_server --features=server
+   ```
+
+## Compiling the Client
+
+This project requires Rust and Cargo to build. You can find installation instructions for Rust [here](https://www.rust-lang.org/tools/install).
+
+The client is intended to run on the MiSTer FPGA platform, which uses an ARMv7 architecture. To compile the client for MiSTer, you will need to set up a cross-compilation environment.
+
+It is recommended to use the `cross` tool for cross-compiling Rust projects. You can find installation instructions for `cross` [here](https://github.com/cross-rs/cross).
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/bleach86/mister_cloud_saves.git
+   cd mister_cloud_saves
+   ```
+
+2. Build the client for ARMv7 architecture:
+
+   ```bash
+   cross build --target=armv7-unknown-linux-gnueabihf --release --bin=mister_save_client
+   ```
+
+3. The compiled binary will be located at:
+
+   ```bash
+   ./target/armv7-unknown-linux-gnueabihf/release/mister_save_client
+   ```
 
 ## License
 

@@ -24,12 +24,23 @@ use mister_save_utils::{FetchSaveRequest, SaveFile, read_file_to_bytes};
 
 static SERVER_URL: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static USER_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
-static SAVE_MAP_PATH: &str = "/media/fat/cloud_saves/mister_save_map.json";
 static CURRENT_CORE: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static IS_ONE_SHOT: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
+static SAVE_MAP_PATH: &str = "/media/fat/cloud_saves/mister_save_map.json";
 
 #[tokio::main]
 async fn main() {
+    let arg = std::env::args().nth(1);
+    if let Some(a) = arg {
+        if a.to_lowercase() == "--version" || a.to_lowercase() == "-v" {
+            let version: &str = env!("CARGO_PKG_VERSION");
+            println!("MiSTer Cloud Saves Client Version v{}", version);
+            return;
+        } else if a.to_lowercase() == "--one-shot" {
+            *IS_ONE_SHOT.lock().await = true;
+        }
+    }
+
     create_pid_file().await;
     read_config().await;
     wait_for_network().await;
@@ -104,13 +115,6 @@ async fn read_config() {
             return;
         }
     };
-
-    let arg = std::env::args().nth(1);
-    if let Some(a) = arg {
-        if a == "--one-shot" {
-            *IS_ONE_SHOT.lock().await = true;
-        }
-    }
 
     *SERVER_URL.lock().await = server_url.clone();
     *USER_ID.lock().await = user_id.clone();
@@ -894,7 +898,7 @@ async fn upload_file(
 }
 
 pub async fn update_save_map() {
-    let paths: Vec<SaveFileType> = vec![SaveFileType::GameSave, SaveFileType::SaveState];
+    let save_types: Vec<SaveFileType> = vec![SaveFileType::GameSave, SaveFileType::SaveState];
     let save_map_path = PathBuf::from(SAVE_MAP_PATH);
 
     let mut result: UserSaveData = UserSaveData::default();
@@ -907,7 +911,7 @@ pub async fn update_save_map() {
         .and_then(|content| serde_json::from_str::<UserSaveData>(&content).ok())
         .unwrap_or_default();
 
-    for save_type in paths {
+    for save_type in save_types {
         let saves_path = match save_type {
             SaveFileType::GameSave => "/media/fat/saves",
             SaveFileType::SaveState => "/media/fat/savestates",
@@ -978,6 +982,7 @@ pub async fn update_save_map() {
             }
         }
     }
+    // Remove entries no longer present
     existing_map.game_saves.retain(|k, _| saves.contains_key(k));
 
     for (k, v) in save_states.iter() {
@@ -992,6 +997,7 @@ pub async fn update_save_map() {
             }
         }
     }
+    // Remove entries no longer present
     existing_map
         .save_states
         .retain(|k, _| save_states.contains_key(k));
