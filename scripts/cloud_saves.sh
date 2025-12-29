@@ -21,6 +21,7 @@
 
 import os
 import sys
+import signal
 import subprocess
 import configparser
 import shutil
@@ -273,6 +274,40 @@ def update_user_scripts_remove():
                     file.write(line)
 
 
+def save_client_pid():
+    """
+    Retrieves the PID of the running Mister Cloud Saves Client.
+
+    :return: PID as integer
+    """
+
+    pid_path = os.path.join("/var/run", "mister_save_client.pid")
+
+    if not os.path.isfile(pid_path):
+        return 0
+
+    with open(pid_path, "r", encoding="utf-8") as pid_file:
+        pid = pid_file.read().strip()
+    return int(pid)
+
+
+def stop_client_process():
+    """
+    Stops the running Mister Cloud Saves Client process.
+    """
+
+    pid = save_client_pid()
+    if pid == 0:
+        print("Mister Cloud Saves Client is not running.")
+        return
+    print(f"Stopping Mister Cloud Saves Client with PID {pid}...")
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+
 def install():
     """
     The installer function for Mister Cloud Saves Client.
@@ -301,6 +336,7 @@ def uninstall():
     print("Uninstalling Mister Cloud Saves Client...")
 
     update_user_scripts_remove()
+    stop_client_process()
 
     if os.path.isdir(CLIENT_DIR):
         shutil.rmtree(CLIENT_DIR)
@@ -311,12 +347,16 @@ def uninstall():
 
     print("Mister Cloud Saves Client uninstalled.")
 
+    reboot_system()
+
 
 def update():
     """
     Updates the Mister Cloud Saves Client.
     """
     print("Updating Mister Cloud Saves Client...")
+
+    stop_client_process()
 
     fetch_client()
     extract_client()
@@ -342,8 +382,9 @@ if __name__ == "__main__":
                 print("1. Install")
                 print("2. Update")
                 print("3. Uninstall")
+                print("4. Exit")
 
-                choice = input("Enter choice (1|2|3): ").strip()
+                choice = input("Enter choice (1|2|3|4): ").strip()
 
                 if choice == "1":
                     ACTION = "--install"
@@ -351,8 +392,11 @@ if __name__ == "__main__":
                     ACTION = "--update"
                 elif choice == "3":
                     ACTION = "--uninstall"
+                elif choice == "4":
+                    print("Exiting.")
+                    sys.exit(0)
                 else:
-                    print("Invalid choice. Please enter 1, 2, or 3.")
+                    print("Invalid choice. Please enter 1, 2, 3, or 4.")
                     continue
                 break
 

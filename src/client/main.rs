@@ -7,10 +7,10 @@ use notify_debouncer_full::{new_debouncer, notify::RecursiveMode};
 use reqwest;
 use std::{
     collections::{HashMap, HashSet},
-    io,
     io::{Read, Write},
     path::Path,
     path::PathBuf,
+    process,
     sync::LazyLock,
     time::Duration,
 };
@@ -30,6 +30,7 @@ static IS_ONE_SHOT: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
 #[tokio::main]
 async fn main() {
+    create_pid_file().await;
     read_config().await;
     wait_for_network().await;
 
@@ -113,6 +114,14 @@ async fn read_config() {
 
     *SERVER_URL.lock().await = server_url.clone();
     *USER_ID.lock().await = user_id.clone();
+}
+
+async fn create_pid_file() {
+    let pid_path = PathBuf::from("/var/run/mister_save_client.pid");
+    let pid = process::id();
+    if let Err(e) = tokio::fs::write(&pid_path, pid.to_string()).await {
+        println!("Failed to write PID file {:?}: {:?}", pid_path, e);
+    }
 }
 
 async fn wait_for_network() -> bool {
@@ -627,11 +636,11 @@ fn prompt_user_conflict(
         if local_is_newer { "Remote" } else { "Local" },
         older.modified_index
     );
-    println!("Action: (L)ocal, (R)emote, (LALL) Local All, (RALL) Remote All");
+    println!("Action: (L)ocal, (R)emote, (LALL) Local All, (RALL) Remote All, (A)bort");
 
     loop {
         print!("> ");
-        match io::stdout().flush() {
+        match std::io::stdout().flush() {
             Ok(_) => {}
             Err(_) => {
                 println!("Failed to flush stdout.");
@@ -640,7 +649,7 @@ fn prompt_user_conflict(
         };
 
         let mut input = String::new();
-        if io::stdin().read_line(&mut input).is_err() {
+        if std::io::stdin().read_line(&mut input).is_err() {
             println!("Failed to read input.");
             continue;
         }
@@ -650,6 +659,10 @@ fn prompt_user_conflict(
             "R" => ConflictAction::KeepRemote,
             "LALL" => ConflictAction::KeepLocalAll,
             "RALL" => ConflictAction::KeepRemoteAll,
+            "A" => {
+                println!("Aborting sync.");
+                std::process::exit(0);
+            }
             _ => {
                 println!("Invalid input.");
                 continue;
