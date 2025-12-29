@@ -453,9 +453,8 @@ async fn sync_saves() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ProgressBar::hidden()
     };
 
-    let style = ProgressStyle::with_template(
-        "{spinner:.green} {prefix:<10} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)",
-    )?;
+    let style =
+        ProgressStyle::with_template("{prefix:<10} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)")?;
 
     total_pb.set_style(style.clone());
     download_pb.set_style(style.clone());
@@ -464,12 +463,6 @@ async fn sync_saves() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     total_pb.set_prefix("Total");
     download_pb.set_prefix("Download");
     upload_pb.set_prefix("Upload");
-
-    println!(
-        "Processing {} download(s) and {} upload(s)...",
-        download_tasks.len(),
-        upload_tasks.len()
-    );
 
     for download in download_tasks {
         let _ = fetch_save_file(&download).await;
@@ -743,8 +736,6 @@ async fn fetch_save_file(
 
                 let save_path = save_dir.join(&request.name);
                 tokio::fs::write(&save_path, &decompressed_data).await?;
-                println!("Successfully fetched save file to {:?}", save_path);
-
                 Ok(())
             } else {
                 Err(Box::new(std::io::Error::new(
