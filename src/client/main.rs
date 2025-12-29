@@ -300,6 +300,15 @@ async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
 
     match save_type {
         SaveFileType::GameSave => {
+            if save_map
+                .game_saves
+                .get(&save_key)
+                .map_or(false, |s| hashes_equal(s.hash, file_hash))
+            {
+                // No changes
+                return;
+            }
+
             modified_index = save_map
                 .game_saves
                 .get(&save_key)
@@ -317,6 +326,15 @@ async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
             save_map.game_saves.insert(save_key.clone(), save_file);
         }
         SaveFileType::SaveState => {
+            if save_map
+                .save_states
+                .get(&save_key)
+                .map_or(false, |s| hashes_equal(s.hash, file_hash))
+            {
+                // No changes
+                return;
+            }
+
             modified_index = save_map
                 .save_states
                 .get(&save_key)
@@ -336,6 +354,19 @@ async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
         SaveFileType::CoreWatch => {}
     }
 
+    let server_url = SERVER_URL.lock().await.clone();
+    let user_id = USER_ID.lock().await.clone();
+
+    upload_file(
+        path,
+        save_type,
+        modified_index,
+        Some(&file_data),
+        server_url,
+        user_id,
+    )
+    .await;
+
     let json_data = match serde_json::to_vec(&save_map) {
         Ok(data) => data,
         Err(e) => {
@@ -350,19 +381,6 @@ async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
             save_map_path, e
         );
     }
-
-    let server_url = SERVER_URL.lock().await.clone();
-    let user_id = USER_ID.lock().await.clone();
-
-    upload_file(
-        path,
-        save_type,
-        modified_index,
-        Some(&file_data),
-        server_url,
-        user_id,
-    )
-    .await;
 }
 
 async fn get_server_data() -> Result<UserSaveData, Box<dyn std::error::Error + Send + Sync>> {
@@ -537,6 +555,23 @@ async fn process_category(
 
             (Some(local), Some(remote)) => {
                 if hashes_equal(local.hash, remote.hash) {
+                    if local.modified_index < remote.modified_index {
+                        // Update local modified index to match remote
+                        if let Some(l_mut) = local_saves.get_mut(&key) {
+                            l_mut.modified_index = remote.modified_index;
+                        }
+                    } else if local.modified_index > remote.modified_index {
+                        // Update remote modified index to match local
+                        queue_upload(
+                            upload_tasks,
+                            key.clone(),
+                            save_type.clone(),
+                            local.modified_index,
+                            server_url.clone(),
+                            user_id.clone(),
+                        );
+                    }
+
                     continue; // Synced
                 }
 
