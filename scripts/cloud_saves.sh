@@ -193,13 +193,13 @@ def extract_client():
     """
     print("Extracting Mister Cloud Saves Client...")
 
-    if os.path.isfile(os.path.join("/tmp", "client.tar.xz")):
+    temp_archive_path = os.path.join("/tmp", "client.tar.xz")
+
+    if os.path.isfile(temp_archive_path):
         if not os.path.isdir(CLIENT_DIR):
             os.makedirs(CLIENT_DIR)
 
-        shutil.unpack_archive(
-            os.path.join("/tmp", "client.tar.xz"), CLIENT_DIR, format="xztar"
-        )
+        shutil.unpack_archive(temp_archive_path, CLIENT_DIR, format="xztar")
 
     else:
         print("Client archive not found")
@@ -242,15 +242,15 @@ def update_user_scripts_install():
     """
     print("Updating user-startup.sh to include Mister Cloud Saves Client...")
 
-    if not os.path.isfile(os.path.join(MISTER_LINUX_DIR, "user-startup.sh")):
+    script_path = os.path.join(MISTER_LINUX_DIR, "user-startup.sh")
+
+    if not os.path.isfile(script_path):
         shutil.copy(
             os.path.join(MISTER_LINUX_DIR, "_user-startup.sh"),
-            os.path.join(MISTER_LINUX_DIR, "user-startup.sh"),
+            script_path,
         )
 
-    with open(
-        os.path.join(MISTER_LINUX_DIR, "user-startup.sh"), "a", encoding="utf-8"
-    ) as file:
+    with open(script_path, "a", encoding="utf-8") as file:
         file.write(f"\n{CLIENT_DIR}/mister_save_client &\n")
 
 
@@ -260,15 +260,13 @@ def update_user_scripts_remove():
     """
     print("Updating user-startup.sh to remove Mister Cloud Saves Client...")
 
-    if os.path.isfile(os.path.join(MISTER_LINUX_DIR, "user-startup.sh")):
-        with open(
-            os.path.join(MISTER_LINUX_DIR, "user-startup.sh"), "r", encoding="utf-8"
-        ) as file:
+    script_path = os.path.join(MISTER_LINUX_DIR, "user-startup.sh")
+
+    if os.path.isfile(script_path):
+        with open(script_path, "r", encoding="utf-8") as file:
             lines = file.readlines()
 
-        with open(
-            os.path.join(MISTER_LINUX_DIR, "user-startup.sh"), "w", encoding="utf-8"
-        ) as file:
+        with open(script_path, "w", encoding="utf-8") as file:
             for line in lines:
                 if CLIENT_DIR not in line:
                     file.write(line)
