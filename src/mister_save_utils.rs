@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SaveFileType {
@@ -69,4 +70,21 @@ pub struct UploadSaveRequest {
 pub async fn read_file_to_bytes(path: &PathBuf) -> std::io::Result<Vec<u8>> {
     let file_bytes = tokio::fs::read(path).await?;
     Ok(file_bytes)
+}
+
+pub async fn hash_file(
+    path: &PathBuf,
+    file_data: Option<&[u8]>,
+) -> Result<u64, Box<dyn std::error::Error>> {
+    let file_bytes = match file_data {
+        Some(data) => data.to_vec(),
+        None => read_file_to_bytes(path).await?,
+    };
+    let hash: u64 = xxh3_64(&file_bytes);
+
+    Ok(hash)
+}
+
+pub fn hashes_equal(hash1: u64, hash2: u64) -> bool {
+    hash1 == hash2
 }
