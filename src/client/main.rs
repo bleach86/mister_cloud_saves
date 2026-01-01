@@ -402,7 +402,7 @@ async fn get_server_data() -> Result<UserSaveData, Box<dyn std::error::Error + S
             if resp.status().is_success() {
                 match resp.json::<UserSaveData>().await {
                     Ok(user_data) => Ok(user_data),
-                    Err(e) => Err(Box::new(e)),
+                    Err(e) => Err(e.into()),
                 }
             } else {
                 Err(Box::new(std::io::Error::new(
@@ -411,7 +411,7 @@ async fn get_server_data() -> Result<UserSaveData, Box<dyn std::error::Error + S
                 )))
             }
         }
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -772,9 +772,15 @@ async fn fetch_save_file(
 
                 // Create save directory if it doesn't exist
                 tokio::fs::create_dir_all(&save_dir).await?;
-
                 let save_path = save_dir.join(&request.name);
-                tokio::fs::write(&save_path, &decompressed_data).await?;
+
+                // Write to temp file first
+                let temp_path = PathBuf::from(format!("/tmp/{}", &request.name));
+                tokio::fs::write(&temp_path, &decompressed_data).await?;
+
+                // Move temp file to final location
+                tokio::fs::rename(&temp_path, &save_path).await?;
+
                 Ok(())
             } else {
                 Err(Box::new(std::io::Error::new(
@@ -783,7 +789,7 @@ async fn fetch_save_file(
                 )))
             }
         }
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e.into()),
     }
 }
 
