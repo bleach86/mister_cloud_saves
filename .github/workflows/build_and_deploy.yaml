@@ -1,0 +1,98 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+
+jobs:
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-unknown-linux-gnueabihf
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo install cross
+
+      - run: cross build --release --target armv7-unknown-linux-gnueabihf
+
+      - run: |
+          tar -C target/armv7-unknown-linux-gnueabihf/release \
+              -cJf client.tar.xz \
+              mister_save_client
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client
+          path: client.tar.xz
+
+  build-server:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo install cross
+
+      - run: |
+          cross build \
+            --release \
+            --target ${{ matrix.target }} \
+            --bin mister_save_server \
+            --features server
+
+      - run: |
+          # Create tarball at root
+          tar -C target/${{ matrix.target }}/release \
+              -cJf server-${{ matrix.target }}.tar.xz \
+              mister_save_server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.target }}
+          path: server-${{ matrix.target }}.tar.xz
+
+  deploy:
+    needs:
+      - build-client
+      - build-server
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract tarballs
+        run: |
+          mkdir extracted
+          for f in artifacts/*.zip; do
+            unzip -j "$f" -d extracted
+          done
+
+      - name: List extracted files
+        run: ls -lh extracted
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extracted/*.tar.xz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
