@@ -1,7 +1,7 @@
 use mister_save_utils::{SaveFile, SaveFileType, UserSaveData};
 
-use sled::{Db, IVec, Result, Tree};
-
+use sled::{Db, Tree};
+#[allow(dead_code)]
 pub struct Database {
     db: Db,
     user_saves_tree: Tree,
@@ -26,7 +26,7 @@ impl Database {
 
         for item in iter {
             match item {
-                Ok((key_ivec, value_ivec)) => {
+                Ok((_key_ivec, value_ivec)) => {
                     let save_file: SaveFile = match serde_json::from_slice(&value_ivec) {
                         Ok(data) => data,
                         Err(_) => continue,
