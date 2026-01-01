@@ -2,25 +2,23 @@ use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use glob::glob;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use ini::ini;
-use mister_save_utils::{ConflictAction, SaveFileType, UploadSaveRequest, UserSaveData};
-use notify_debouncer_full::{new_debouncer, notify::RecursiveMode};
 use reqwest;
 use std::{
     collections::{HashMap, HashSet},
     io::{Read, Write},
-    path::Path,
     path::PathBuf,
     process,
     sync::LazyLock,
     time::Duration,
 };
-use tokio::{
-    sync::{Mutex, mpsc},
-    task::JoinHandle,
-};
-use xxhash_rust::xxh3::xxh3_64;
+use tokio::sync::Mutex;
 
-use mister_save_utils::{FetchSaveRequest, SaveFile, read_file_to_bytes};
+use mister_save_utils::{
+    ConflictAction, FetchSaveRequest, SaveFile, SaveFileType, UploadSaveRequest, UserSaveData,
+    hash_file, hashes_equal, read_file_to_bytes,
+};
+mod inotify_watcher;
+use inotify_watcher::*;
 
 static SERVER_URL: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static USER_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
@@ -140,97 +138,7 @@ async fn wait_for_network() -> bool {
     }
 }
 
-async fn watch_dirs() {
-    let paths: Vec<SaveFileType> = vec![
-        SaveFileType::GameSave,
-        SaveFileType::CoreWatch,
-        SaveFileType::SaveState,
-    ];
-    let mut handles: Vec<JoinHandle<()>> = Vec::new();
-
-    for save_type in paths {
-        let path = match save_type {
-            SaveFileType::GameSave => "/media/fat/saves",
-            SaveFileType::SaveState => "/media/fat/savestates",
-            SaveFileType::CoreWatch => "/tmp/CORENAME",
-        };
-
-        let path_clone: String = path.to_string();
-        let handle: JoinHandle<()> = tokio::spawn(async move {
-            if let Err(error) = watch(&path_clone, save_type).await {
-                eprintln!("Error watching {}: {:?}", path_clone, error);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // Wait for all tasks (they should run forever)
-    for handle in handles {
-        let _ = handle.await;
-    }
-}
-
-async fn watch<P: AsRef<Path>>(path: P, save_type: SaveFileType) -> notify::Result<()> {
-    let (tx_blocking, rx_blocking) = std::sync::mpsc::channel();
-
-    let (tx_async, mut rx_async) = mpsc::unbounded_channel();
-
-    let mut debouncer = new_debouncer(Duration::from_millis(2500), None, tx_blocking)?;
-    debouncer.watch(path.as_ref(), RecursiveMode::Recursive)?;
-
-    tokio::task::spawn_blocking(move || {
-        for result in rx_blocking {
-            if tx_async.send(result).is_err() {
-                break;
-            }
-        }
-    });
-
-    while let Some(result) = rx_async.recv().await {
-        match result {
-            Ok(events) => {
-                for event in events {
-                    match &event.kind {
-                        notify::EventKind::Create(_) => {
-                            println!("File created: {:?}", event.paths);
-
-                            if save_type == SaveFileType::CoreWatch {
-                                continue;
-                            }
-
-                            for path in &event.paths {
-                                handle_file_event(save_type.clone(), path.clone()).await;
-                            }
-                        }
-                        notify::EventKind::Modify(_) => {
-                            if save_type == SaveFileType::CoreWatch {
-                                handle_core_change_event().await;
-                                continue;
-                            }
-
-                            for path in &event.paths {
-                                handle_file_event(save_type.clone(), path.clone()).await;
-                            }
-                        }
-                        notify::EventKind::Remove(_) => {
-                            //
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Err(errors) => {
-                for error in errors {
-                    eprintln!("Error: {error:?}");
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn handle_core_change_event() {
+pub async fn handle_core_change_event() {
     if CURRENT_CORE.lock().await.as_str() == "MENU" {
         return;
     }
@@ -256,7 +164,7 @@ async fn handle_core_change_event() {
     *CURRENT_CORE.lock().await = core_name;
 }
 
-async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
+pub async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
     let save_map_path = PathBuf::from(SAVE_MAP_PATH);
 
     let mut save_map = match tokio::fs::read_to_string(&save_map_path).await {
@@ -1018,21 +926,4 @@ pub async fn update_save_map() {
     } else {
         println!("Failed to serialize save map");
     }
-}
-
-async fn hash_file(
-    path: &PathBuf,
-    file_data: Option<&[u8]>,
-) -> Result<u64, Box<dyn std::error::Error>> {
-    let file_bytes = match file_data {
-        Some(data) => data.to_vec(),
-        None => read_file_to_bytes(path).await?,
-    };
-    let hash: u64 = xxh3_64(&file_bytes);
-
-    Ok(hash)
-}
-
-fn hashes_equal(hash1: u64, hash2: u64) -> bool {
-    hash1 == hash2
 }
