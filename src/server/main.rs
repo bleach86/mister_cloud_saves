@@ -1,15 +1,10 @@
 #[macro_use]
 extern crate rocket;
 
-use reqwest::Response;
 use rocket::State;
-use rocket::http::ContentType;
 use rocket::http::Status;
-use rocket::response::Response as RocketResponse;
 use rocket::response::status::NotFound;
 use rocket::{fs::NamedFile, serde::json::Json};
-use std::collections::HashMap;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs::File;
@@ -136,7 +131,7 @@ async fn fetch_user_data(
 }
 
 #[get("/generate_user_id")]
-async fn generate_user_id(db: &State<Arc<Database>>) -> Result<String, Status> {
+async fn generate_user_id() -> Result<String, Status> {
     let user_id = Uuid::new_v4();
 
     let user_dir = PathBuf::from(format!("user_saves/{}", user_id));
