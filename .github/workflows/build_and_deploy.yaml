@@ -78,12 +78,21 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: .
+          path: artifacts
 
-      - uses: softprops/action-gh-release@v1
+      - name: Extract tarballs
+        run: |
+          mkdir extracted
+          for f in artifacts/*.zip; do
+            unzip -j "$f" -d extracted
+          done
+
+      - name: List extracted files
+        run: ls -lh extracted
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            client.tar.xz
-            server-*.tar.xz
+          files: extracted/*.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
