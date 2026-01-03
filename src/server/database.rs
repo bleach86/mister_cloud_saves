@@ -41,6 +41,9 @@ impl Database {
                         SaveFileType::SaveState => {
                             user_data.save_states.insert(save_key.clone(), save_file);
                         }
+                        SaveFileType::NvRam => {
+                            user_data.nv_ram.insert(save_key.clone(), save_file);
+                        }
                         _ => continue,
                     }
                 }

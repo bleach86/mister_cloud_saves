@@ -38,6 +38,7 @@ async fn upload_save(
     let saves_folder = match _save_file.save_type {
         SaveFileType::GameSave => "saves",
         SaveFileType::SaveState => "savestates",
+        SaveFileType::NvRam => "nvram",
         _ => {
             println!("Unsupported save file type");
             return Status::BadRequest;
@@ -47,12 +48,10 @@ async fn upload_save(
     let saves_dir = user_dir.join(saves_folder);
     let core_path = saves_dir.join(&_save_file.core);
 
-    if !core_path.exists() {
-        if let Err(e) = tokio::fs::create_dir_all(&core_path).await {
-            println!("Failed to create core directory: {:?}", e);
-            return Status::InternalServerError;
-        }
-    };
+    if let Err(e) = tokio::fs::create_dir_all(&core_path).await {
+        println!("Failed to create core directory: {:?}", e);
+        return Status::InternalServerError;
+    }
 
     let file_path = core_path.join(&format!("{}", &_save_file.name));
     match File::create(&file_path).await {
@@ -91,9 +90,19 @@ async fn upload_save(
 
 #[post("/fetch_save", data = "<save_request>")]
 async fn fetch_save(save_request: Json<FetchSaveRequest>) -> Result<NamedFile, NotFound<String>> {
+    let user_dir = PathBuf::from(format!("user_saves/{}", &save_request.user_id));
+
+    if !user_dir.exists() {
+        return Err(NotFound(format!(
+            "User directory not found for user_id: {}",
+            save_request.user_id
+        )));
+    };
+
     let save_folder = match save_request.save_type {
         SaveFileType::GameSave => "saves",
         SaveFileType::SaveState => "savestates",
+        SaveFileType::NvRam => "nvram",
         _ => {
             return Err(NotFound(format!(
                 "Unsupported save file type: {:?}",
@@ -109,7 +118,7 @@ async fn fetch_save(save_request: Json<FetchSaveRequest>) -> Result<NamedFile, N
 
     match NamedFile::open(PathBuf::from(&path)).await {
         Ok(file) => Ok(file),
-        Err(_) => Err(NotFound(format!("Save file not found at path: {}", path))),
+        Err(_) => Err(NotFound(format!("Save file not found"))),
     }
 }
 
@@ -153,6 +162,14 @@ async fn generate_user_id() -> Result<String, Status> {
         Ok(_) => {}
         Err(e) => {
             println!("Failed to create states directory: {:?}", e);
+            return Err(Status::InternalServerError);
+        }
+    }
+
+    match tokio::fs::create_dir_all(user_dir.join("nvram")).await {
+        Ok(_) => {}
+        Err(e) => {
+            println!("Failed to create nvram directory: {:?}", e);
             return Err(Status::InternalServerError);
         }
     }
