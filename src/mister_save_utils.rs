@@ -8,6 +8,7 @@ pub enum SaveFileType {
     GameSave,
     SaveState,
     CoreWatch,
+    NvRam,
 }
 
 impl Default for SaveFileType {
@@ -47,6 +48,9 @@ pub struct UserSaveData {
     pub user_id: String,
     pub game_saves: HashMap<String, SaveFile>,
     pub save_states: HashMap<String, SaveFile>,
+
+    #[serde(default)]
+    pub nv_ram: HashMap<String, SaveFile>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]

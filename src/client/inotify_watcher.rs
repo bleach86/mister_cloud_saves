@@ -6,18 +6,20 @@ use tokio::{sync::mpsc, task::JoinHandle};
 use crate::{handle_core_change_event, handle_file_event};
 
 pub async fn watch_dirs() {
-    let paths: Vec<SaveFileType> = vec![
+    let save_types: Vec<SaveFileType> = vec![
         SaveFileType::GameSave,
         SaveFileType::CoreWatch,
         SaveFileType::SaveState,
+        SaveFileType::NvRam,
     ];
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
-    for save_type in paths {
+    for save_type in save_types {
         let path = match save_type {
             SaveFileType::GameSave => "/media/fat/saves",
             SaveFileType::SaveState => "/media/fat/savestates",
             SaveFileType::CoreWatch => "/tmp/CORENAME",
+            SaveFileType::NvRam => "/media/fat/config/nvram",
         };
 
         let path_clone: String = path.to_string();

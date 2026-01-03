@@ -26,12 +26,14 @@ import subprocess
 import configparser
 import shutil
 import time
+import hashlib
 import requests  # type: ignore
 
 DEFAULT_SERVER_URL = "https://mister-cloud-saves.tuxprint.com"
 GH_REPO_API_URL = (
     "https://api.github.com/repos/bleach86/mister_cloud_saves/releases/latest"
 )
+SCRIPT_RAW_URL = "https://raw.githubusercontent.com/bleach86/mister_cloud_saves/refs/heads/main/scripts/cloud_saves.sh"
 MISTER_PATH = "/media/fat"
 CLIENT_DIR = os.path.join(MISTER_PATH, "cloud_saves")
 MISTER_LINUX_DIR = os.path.join(MISTER_PATH, "linux/")
@@ -348,10 +350,57 @@ def uninstall():
     reboot_system()
 
 
+def update_self():
+    """
+    Updates the Mister Cloud Saves installer script (this one).
+    """
+    print("Checking for installer script updates...")
+
+    tmp_dir = os.path.abspath("/media/fat/cloud_saves/tmp/")
+    tmp_path = os.path.join(tmp_dir, "cloud_saves.sh")
+    if not os.path.isdir(tmp_dir):
+        os.makedirs(tmp_dir)
+
+    response = requests.get(SCRIPT_RAW_URL, timeout=30)
+    installer_path = os.path.join("/media/fat/Scripts", "cloud_saves.sh")
+
+    if response.status_code == 200:
+        tmp_hash = hashlib.sha256(response.content).hexdigest()
+
+        with open(installer_path, "rb") as current_file:
+            current_hash = hashlib.sha256(current_file.read()).hexdigest()
+
+        if tmp_hash == current_hash:
+            print("Script is already up to date.")
+            return
+
+        print("Updating script...")
+        with open(
+            tmp_path,
+            "wb",
+        ) as file:
+            file.write(response.content)
+
+        shutil.move(
+            tmp_path,
+            os.path.join("/media/fat/Scripts", "cloud_saves.sh"),
+        )
+
+        print("Installer script updated successfully.")
+        print("Restarting installer...")
+
+        os.execv(installer_path, [installer_path, "--update-client-only"])
+
+    else:
+        print("Error updating script")
+        sys.exit(1)
+
+
 def update():
     """
     Updates the Mister Cloud Saves Client.
     """
+
     print("Updating Mister Cloud Saves Client...")
 
     stop_client_process()
@@ -401,6 +450,9 @@ if __name__ == "__main__":
     if ACTION.lower() == "--install":
         install()
     elif ACTION.lower() == "--update":
+        update_self()
+        update()
+    elif ACTION.lower() == "--update-client-only":
         update()
     elif ACTION.lower() == "--uninstall":
         uninstall()

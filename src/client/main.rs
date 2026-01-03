@@ -40,6 +40,7 @@ async fn main() {
     }
 
     create_pid_file().await;
+    clean_tmp_files().await;
     read_config().await;
     wait_for_network().await;
 
@@ -116,6 +117,20 @@ async fn read_config() {
 
     *SERVER_URL.lock().await = server_url.clone();
     *USER_ID.lock().await = user_id.clone();
+}
+
+async fn clean_tmp_files() {
+    let pattern = "/media/fat/cloud_saves/tmp/*";
+    for entry in glob(pattern).expect("Failed to read glob pattern") {
+        match entry {
+            Ok(path) => {
+                if let Err(e) = tokio::fs::remove_file(&path).await {
+                    println!("Failed to remove temp file {:?}: {:?}", path, e);
+                }
+            }
+            Err(e) => println!("Glob error: {:?}", e),
+        }
+    }
 }
 
 async fn create_pid_file() {
@@ -208,63 +223,36 @@ pub async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
 
     let save_key = format!("{}/{}", core_name, save_name);
 
-    let mut modified_index: u64 = 0;
-
-    match save_type {
-        SaveFileType::GameSave => {
-            if save_map
-                .game_saves
-                .get(&save_key)
-                .map_or(false, |s| hashes_equal(s.hash, file_hash))
-            {
-                // No changes
-                return;
-            }
-
-            modified_index = save_map
-                .game_saves
-                .get(&save_key)
-                .map_or(0, |s| s.modified_index + 1);
-
-            let save_file = SaveFile {
-                name: save_name.clone(),
-                save_type: SaveFileType::GameSave,
-                core: core_name.clone(),
-                hash: file_hash,
-                modified_index,
-                user_id: "local".to_string(),
-                data: None,
-            };
-            save_map.game_saves.insert(save_key.clone(), save_file);
+    let modified_index: u64 = match save_type {
+        SaveFileType::GameSave => insert_save_data(
+            &mut save_map.game_saves,
+            &save_key,
+            &save_name,
+            &core_name,
+            file_hash,
+            SaveFileType::GameSave,
+        ),
+        SaveFileType::SaveState => insert_save_data(
+            &mut save_map.save_states,
+            &save_key,
+            &save_name,
+            &core_name,
+            file_hash,
+            SaveFileType::SaveState,
+        ),
+        SaveFileType::NvRam => insert_save_data(
+            &mut save_map.nv_ram,
+            &save_key,
+            &save_name,
+            &core_name,
+            file_hash,
+            SaveFileType::NvRam,
+        ),
+        SaveFileType::CoreWatch => {
+            // Should not happen
+            0
         }
-        SaveFileType::SaveState => {
-            if save_map
-                .save_states
-                .get(&save_key)
-                .map_or(false, |s| hashes_equal(s.hash, file_hash))
-            {
-                // No changes
-                return;
-            }
-
-            modified_index = save_map
-                .save_states
-                .get(&save_key)
-                .map_or(0, |s| s.modified_index + 1);
-
-            let save_file = SaveFile {
-                name: save_name.clone(),
-                save_type: SaveFileType::SaveState,
-                core: core_name.clone(),
-                hash: file_hash,
-                modified_index,
-                user_id: "local".to_string(),
-                data: None,
-            };
-            save_map.save_states.insert(save_key.clone(), save_file);
-        }
-        SaveFileType::CoreWatch => {}
-    }
+    };
 
     let server_url = SERVER_URL.lock().await.clone();
     let user_id = USER_ID.lock().await.clone();
@@ -293,6 +281,39 @@ pub async fn handle_file_event(save_type: SaveFileType, path: PathBuf) {
             save_map_path, e
         );
     }
+}
+
+fn insert_save_data(
+    saves: &mut HashMap<String, SaveFile>,
+    save_key: &str,
+    save_name: &str,
+    core_name: &str,
+    file_hash: u64,
+    save_type: SaveFileType,
+) -> u64 {
+    if saves
+        .get(save_key)
+        .map_or(false, |s| hashes_equal(s.hash, file_hash))
+    {
+        // No changes
+        return saves.get(save_key).map_or(0, |s| s.modified_index);
+    }
+
+    let modified_index = saves.get(save_key).map_or(0, |s| s.modified_index + 1);
+
+    let save_file = SaveFile {
+        name: save_name.to_string(),
+        save_type,
+        core: core_name.to_string(),
+        hash: file_hash,
+        modified_index,
+        user_id: "local".to_string(),
+        data: None,
+    };
+
+    saves.insert(save_key.to_string(), save_file);
+
+    modified_index
 }
 
 async fn get_server_data() -> Result<UserSaveData, Box<dyn std::error::Error + Send + Sync>> {
@@ -354,6 +375,18 @@ async fn sync_saves() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         SaveFileType::SaveState,
         &mut local_data.save_states,
         &remote_data.save_states,
+        manage_conflicts,
+        &mut download_tasks,
+        &mut upload_tasks,
+        server_url.clone(),
+        user_id.clone(),
+    )
+    .await;
+
+    process_category(
+        SaveFileType::NvRam,
+        &mut local_data.nv_ram,
+        &remote_data.nv_ram,
         manage_conflicts,
         &mut download_tasks,
         &mut upload_tasks,
@@ -658,6 +691,7 @@ async fn fetch_save_file(
     let save_folder = match request.save_type {
         SaveFileType::GameSave => "saves",
         SaveFileType::SaveState => "savestates",
+        SaveFileType::NvRam => "config",
         _ => {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -675,15 +709,20 @@ async fn fetch_save_file(
                 let mut decompressed_data = Vec::new();
                 zdecode.read_to_end(&mut decompressed_data)?;
 
-                let save_dir =
-                    PathBuf::from(format!("/media/fat/{}/{}", save_folder, request.core));
+                let base_dir = PathBuf::from("/media/fat");
+                let save_dir = base_dir.join(save_folder).join(&request.core);
 
                 // Create save directory if it doesn't exist
                 tokio::fs::create_dir_all(&save_dir).await?;
                 let save_path = save_dir.join(&request.name);
 
+                println!("The save file will be written to {:?}", save_path);
+
                 // Write to temp file first
-                let temp_path = PathBuf::from(format!("/tmp/{}", &request.name));
+                let temp_dir = PathBuf::from("/media/fat/cloud_saves/tmp");
+                tokio::fs::create_dir_all(&temp_dir).await?;
+                let temp_path = temp_dir.join(request.name.clone());
+
                 tokio::fs::write(&temp_path, &decompressed_data).await?;
 
                 // Move temp file to final location
@@ -712,6 +751,7 @@ async fn upload_file(
     let base_dir = match save_type {
         SaveFileType::GameSave => PathBuf::from("/media/fat/saves"),
         SaveFileType::SaveState => PathBuf::from("/media/fat/savestates"),
+        SaveFileType::NvRam => PathBuf::from("/media/fat/config"),
         _ => {
             println!("Unsupported save type for upload: {:?}", save_type);
             return;
@@ -812,12 +852,17 @@ async fn upload_file(
 }
 
 pub async fn update_save_map() {
-    let save_types: Vec<SaveFileType> = vec![SaveFileType::GameSave, SaveFileType::SaveState];
+    let save_types: Vec<SaveFileType> = vec![
+        SaveFileType::GameSave,
+        SaveFileType::SaveState,
+        SaveFileType::NvRam,
+    ];
     let save_map_path = PathBuf::from(SAVE_MAP_PATH);
 
     let mut result: UserSaveData = UserSaveData::default();
     let mut saves: HashMap<String, SaveFile> = HashMap::new();
     let mut save_states: HashMap<String, SaveFile> = HashMap::new();
+    let mut nv_rams: HashMap<String, SaveFile> = HashMap::new();
 
     let mut existing_map = tokio::fs::read_to_string(&save_map_path)
         .await
@@ -829,6 +874,7 @@ pub async fn update_save_map() {
         let saves_path = match save_type {
             SaveFileType::GameSave => "/media/fat/saves",
             SaveFileType::SaveState => "/media/fat/savestates",
+            SaveFileType::NvRam => "/media/fat/config/nvram",
             SaveFileType::CoreWatch => continue, // skip
         };
 
@@ -877,6 +923,9 @@ pub async fn update_save_map() {
                         SaveFileType::SaveState => {
                             save_states.insert(save_key, save_file);
                         }
+                        SaveFileType::NvRam => {
+                            nv_rams.insert(save_key, save_file);
+                        }
                         _ => {}
                     }
                 }
@@ -916,8 +965,26 @@ pub async fn update_save_map() {
         .save_states
         .retain(|k, _| save_states.contains_key(k));
 
+    for (k, v) in nv_rams.iter() {
+        if !existing_map.nv_ram.contains_key(k) {
+            existing_map.nv_ram.insert(k.clone(), v.clone());
+        } else {
+            // Update hash if changed
+            let existing_save = existing_map.nv_ram.get_mut(k).unwrap();
+            if existing_save.hash != v.hash {
+                existing_save.hash = v.hash;
+                existing_save.modified_index += 1;
+            }
+        }
+    }
+    // Remove entries no longer present
+    existing_map.nv_ram.retain(|k, _| nv_rams.contains_key(k));
+
+    println!("{}", existing_map.nv_ram.len());
+
     result.game_saves = existing_map.game_saves;
     result.save_states = existing_map.save_states;
+    result.nv_ram = existing_map.nv_ram;
 
     if let Ok(json_data) = serde_json::to_vec(&result) {
         if let Err(e) = tokio::fs::write(&save_map_path, &json_data).await {
