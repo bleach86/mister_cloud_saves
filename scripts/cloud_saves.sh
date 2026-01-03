@@ -314,6 +314,7 @@ def install():
     """
     print("Installing Mister Cloud Saves Client...")
 
+    stop_client_process()
     fetch_client()
     extract_client()
 

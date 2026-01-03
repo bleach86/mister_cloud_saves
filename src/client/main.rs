@@ -134,6 +134,11 @@ async fn clean_tmp_files() {
 }
 
 async fn create_pid_file() {
+    if IS_ONE_SHOT.lock().await.clone() == true {
+        // No PID file for one-shot runs
+        return;
+    }
+
     let pid_path = PathBuf::from("/var/run/mister_save_client.pid");
     let pid = process::id();
     if let Err(e) = tokio::fs::write(&pid_path, pid.to_string()).await {
@@ -715,8 +720,6 @@ async fn fetch_save_file(
                 // Create save directory if it doesn't exist
                 tokio::fs::create_dir_all(&save_dir).await?;
                 let save_path = save_dir.join(&request.name);
-
-                println!("The save file will be written to {:?}", save_path);
 
                 // Write to temp file first
                 let temp_dir = PathBuf::from("/media/fat/cloud_saves/tmp");
