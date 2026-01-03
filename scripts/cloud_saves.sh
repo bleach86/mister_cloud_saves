@@ -409,6 +409,8 @@ def update():
     fetch_client()
     extract_client()
 
+    run_initial_sync()
+
     reboot_system()
 
 
