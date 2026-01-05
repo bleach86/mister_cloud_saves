@@ -93,7 +93,7 @@ def is_valid_url(url):
     health_url = f"{url}/health"
 
     try:
-        response = requests.get(health_url, timeout=10)
+        response = requests.get(health_url, timeout=30)
         return response.status_code == 200
     except requests.RequestException:
         return False
