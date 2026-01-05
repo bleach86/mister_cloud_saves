@@ -16,15 +16,14 @@ FROM debian:stable-slim
 # Install necessary runtime dependencies
 
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-WORKDIR /usr/local/bin
+WORKDIR /app
 
 # Copy the built binary from the builder stage
 COPY --from=builder /usr/src/mister_cloud_saves/target/release/mister_save_server .
 
-RUN mkdir user_saves && \
-    mkdir user_saves_sled
+RUN mkdir -p user_saves user_saves_sled
 
-VOLUME ["/user_saves", "/user_saves_sled"]
+VOLUME ["/app/user_saves", "/app/user_saves_sled"]
 
 # Expose the port the server will run on
 EXPOSE 8000
