@@ -8,7 +8,7 @@ A utility to sync MiSTer FPGA save files with a cloud server.
 - Support for multiple MiSTer devices syncing to the same server
 - Syncs saves, save states and arcade NVRAM files
 - Uses file hashing to detect changes
-- Commpression to reduce bandwidth usage
+- Compression to reduce bandwidth usage
 - Core agnostic - works with any MiSTer core that uses save files
 - Conflict resolution for multiple devices
 
