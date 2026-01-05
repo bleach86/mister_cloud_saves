@@ -719,17 +719,17 @@ async fn fetch_save_file(
 
                 // Create save directory if it doesn't exist
                 tokio::fs::create_dir_all(&save_dir).await?;
-                let save_path = save_dir.join(&request.name);
+                let final_save_path = save_dir.join(&request.name);
 
                 // Write to temp file first
-                let temp_dir = PathBuf::from("/media/fat/cloud_saves/tmp");
+                let temp_dir = base_dir.join("cloud_saves/tmp");
                 tokio::fs::create_dir_all(&temp_dir).await?;
-                let temp_path = temp_dir.join(request.name.clone());
+                let temp_save_path = temp_dir.join(request.name.clone());
 
-                tokio::fs::write(&temp_path, &decompressed_data).await?;
+                tokio::fs::write(&temp_save_path, &decompressed_data).await?;
 
                 // Move temp file to final location
-                tokio::fs::rename(&temp_path, &save_path).await?;
+                tokio::fs::rename(&temp_save_path, &final_save_path).await?;
 
                 Ok(())
             } else {
@@ -867,7 +867,7 @@ pub async fn update_save_map() {
     let mut save_states: HashMap<String, SaveFile> = HashMap::new();
     let mut nv_rams: HashMap<String, SaveFile> = HashMap::new();
 
-    let mut existing_map = tokio::fs::read_to_string(&save_map_path)
+    let mut existing_map: UserSaveData = tokio::fs::read_to_string(&save_map_path)
         .await
         .ok()
         .and_then(|content| serde_json::from_str::<UserSaveData>(&content).ok())
@@ -934,56 +934,20 @@ pub async fn update_save_map() {
                 }
             }
         }
-    }
 
-    for (k, v) in saves.iter() {
-        if !existing_map.game_saves.contains_key(k) {
-            existing_map.game_saves.insert(k.clone(), v.clone());
-        } else {
-            // Update hash if changed
-            let existing_save = existing_map.game_saves.get_mut(k).unwrap();
-            if existing_save.hash != v.hash {
-                existing_save.hash = v.hash;
-                existing_save.modified_index += 1;
+        match save_type {
+            SaveFileType::GameSave => {
+                update_save_files_from(&saves, &mut existing_map.game_saves);
             }
+            SaveFileType::SaveState => {
+                update_save_files_from(&save_states, &mut existing_map.save_states);
+            }
+            SaveFileType::NvRam => {
+                update_save_files_from(&nv_rams, &mut existing_map.nv_ram);
+            }
+            _ => {}
         }
     }
-    // Remove entries no longer present
-    existing_map.game_saves.retain(|k, _| saves.contains_key(k));
-
-    for (k, v) in save_states.iter() {
-        if !existing_map.save_states.contains_key(k) {
-            existing_map.save_states.insert(k.clone(), v.clone());
-        } else {
-            // Update hash if changed
-            let existing_save = existing_map.save_states.get_mut(k).unwrap();
-            if existing_save.hash != v.hash {
-                existing_save.hash = v.hash;
-                existing_save.modified_index += 1;
-            }
-        }
-    }
-    // Remove entries no longer present
-    existing_map
-        .save_states
-        .retain(|k, _| save_states.contains_key(k));
-
-    for (k, v) in nv_rams.iter() {
-        if !existing_map.nv_ram.contains_key(k) {
-            existing_map.nv_ram.insert(k.clone(), v.clone());
-        } else {
-            // Update hash if changed
-            let existing_save = existing_map.nv_ram.get_mut(k).unwrap();
-            if existing_save.hash != v.hash {
-                existing_save.hash = v.hash;
-                existing_save.modified_index += 1;
-            }
-        }
-    }
-    // Remove entries no longer present
-    existing_map.nv_ram.retain(|k, _| nv_rams.contains_key(k));
-
-    println!("{}", existing_map.nv_ram.len());
 
     result.game_saves = existing_map.game_saves;
     result.save_states = existing_map.save_states;
@@ -996,4 +960,24 @@ pub async fn update_save_map() {
     } else {
         println!("Failed to serialize save map");
     }
+}
+
+fn update_save_files_from(
+    new_saves: &HashMap<String, SaveFile>,
+    existing_map: &mut HashMap<String, SaveFile>,
+) {
+    for (k, v) in new_saves.iter() {
+        if !existing_map.contains_key(k) {
+            existing_map.insert(k.clone(), v.clone());
+        } else {
+            // Update hash if changed
+            let existing_save = existing_map.get_mut(k).unwrap();
+            if existing_save.hash != v.hash {
+                existing_save.hash = v.hash;
+                existing_save.modified_index += 1;
+            }
+        }
+    }
+    // Remove entries no longer present
+    existing_map.retain(|k, _| new_saves.contains_key(k));
 }

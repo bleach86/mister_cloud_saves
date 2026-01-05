@@ -76,6 +76,12 @@ To uninstall the `mister_save_client`, run the `cloud_saves` script from the MiS
 
 # Building and Running Your Own Server
 
+## Precompiled Binaries
+
+Precompiled binaries for the server can be found in the [Releases](https://github.com/bleach86/mister_cloud_saves/releases) section of this repository.
+
+## Compiling the Server
+
 This project requires Rust and Cargo to build. You can find installation instructions for Rust [here](https://www.rust-lang.org/tools/install).
 This project also requires C toolchain for building some dependencies. Make sure you have a C compiler installed (e.g., `gcc` or `clang`).
 
