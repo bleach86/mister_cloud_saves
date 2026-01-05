@@ -90,8 +90,10 @@ def is_valid_url(url):
     :return: True if URL is valid, False otherwise
     """
 
+    health_url = f"{url}/health"
+
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(health_url, timeout=10)
         return response.status_code == 200
     except requests.RequestException:
         return False
