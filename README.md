@@ -6,7 +6,9 @@ A utility to sync MiSTer FPGA save files with a cloud server.
 
 - Sync save files to/from a cloud server
 - Support for multiple MiSTer devices syncing to the same server
-- Syncs saves and save states
+- Syncs saves, save states and arcade NVRAM files
+- Uses file hashing to detect changes
+- Commpression to reduce bandwidth usage
 - Core agnostic - works with any MiSTer core that uses save files
 - Conflict resolution for multiple devices
 
@@ -74,7 +76,70 @@ To update to the latest version, simply run the `cloud_saves` script again from 
 
 To uninstall the `mister_save_client`, run the `cloud_saves` script from the MiSTer menu and choose the uninstall option. This will remove the client and all associated files from your MiSTer SD card.
 
-# Building and Running Your Own Server
+# Running Your Own Server
+
+## Precompiled Binaries
+
+Precompiled binaries for the server can be found in the [Releases](https://github.com/bleach86/mister_cloud_saves/releases) section of this repository.
+
+## Docker
+
+You can run the server using Docker. A Docker image is available on GitHub Container Registry.
+
+To run the server using Docker, use the following command:
+
+```bash
+docker run -d --name mister-saves-container \
+           -p 8000:8000 \
+           -v mister_saves:/app/user_saves \
+           -v mister_sled:/app/user_saves_sled \
+           ghcr.io/bleach86/mister-cloud-saves:latest
+```
+
+This command will:
+
+- Map port `8000` on the host to port `8000` in the container
+- Create and mount a Docker volume named `mister_saves` to persist user save files
+- Create and mount a Docker volume named `mister_sled` to persist the Sled database
+
+To specify a different port, change the `-p` option. For example, to use port `8080` on the host:
+
+```bash
+-p 8080:8000
+```
+
+To specify custom directories on the host for saves and the Sled database, replace the `-v` options with paths to your desired directories. For example:
+
+```bash
+-v /path/to/your/saves:/app/user_saves \
+-v /path/to/your/sled_db:/app/user_saves_sled \
+```
+
+To stop and remove the container, use the following commands:
+
+```bash
+docker stop mister-saves-container
+docker rm mister-saves-container
+```
+
+To stay updated with the latest image, you can pull the latest version from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/bleach86/mister-cloud-saves:latest
+```
+
+Or automate the update process using a tool like [Watchtower](https://containrrr.dev/watchtower/).
+
+```bash
+docker run -d \
+  --name watchtower \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --cleanup \
+  mister-saves-container
+```
+
+## Compiling the Server
 
 This project requires Rust and Cargo to build. You can find installation instructions for Rust [here](https://www.rust-lang.org/tools/install).
 This project also requires C toolchain for building some dependencies. Make sure you have a C compiler installed (e.g., `gcc` or `clang`).
