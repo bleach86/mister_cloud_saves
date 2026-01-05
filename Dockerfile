@@ -31,5 +31,6 @@ EXPOSE 8000
 # Set the entrypoint to run the server
 
 ENV ROCKET_ADDRESS=0.0.0.0
+ENV ROCKET_LIMITS='{ json = "25 MiB" }'
 
 ENTRYPOINT ["./mister_save_server"]
