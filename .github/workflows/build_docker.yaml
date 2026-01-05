@@ -1,10 +1,9 @@
 name: Build and Push Docker
 
 on:
-  push:
-    branches:
-      - main
-      - docker
+  workflow_dispatch:
+  tags:
+    - "v*"
   release:
     types: [published]
 
@@ -35,4 +34,4 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/${{ github.repository_owner }}/mister_save_server:latest
+          tags: ghcr.io/${{ github.repository_owner }}/mister-cloud-saves:latest,ghcr.io/${{ github.repository_owner }}/mister-cloud-saves:${{ github.ref_name }}
