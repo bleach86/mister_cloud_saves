@@ -2,8 +2,9 @@ name: Build and Push Docker
 
 on:
   workflow_dispatch:
-  tags:
-    - "v*"
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
 
