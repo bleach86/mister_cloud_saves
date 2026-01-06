@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 
 use mister_save_utils::{
     ConflictAction, FetchSaveRequest, SaveFile, SaveFileType, UploadSaveRequest, UserSaveData,
-    hash_file, hashes_equal, read_file_to_bytes,
+    hash_file, hashes_equal, is_hidden_path, read_file_to_bytes,
 };
 mod inotify_watcher;
 use inotify_watcher::*;
@@ -45,6 +45,9 @@ async fn main() {
     wait_for_network().await;
 
     update_save_map().await;
+
+    std::process::exit(0);
+
     let _ = sync_saves().await;
 
     if IS_ONE_SHOT.lock().await.clone() == true {
@@ -857,8 +860,8 @@ async fn upload_file(
 pub async fn update_save_map() {
     let save_types: Vec<SaveFileType> = vec![
         SaveFileType::GameSave,
-        SaveFileType::SaveState,
-        SaveFileType::NvRam,
+        //SaveFileType::SaveState,
+        //SaveFileType::NvRam,
     ];
     let save_map_path = PathBuf::from(SAVE_MAP_PATH);
 
@@ -891,6 +894,10 @@ pub async fn update_save_map() {
 
         for entry in save_files {
             if let Ok(path) = entry {
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 if path.is_file() {
                     let file_name = path
                         .file_name()
