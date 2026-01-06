@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 
 use mister_save_utils::{
     ConflictAction, FetchSaveRequest, SaveFile, SaveFileType, UploadSaveRequest, UserSaveData,
-    hash_file, hashes_equal, read_file_to_bytes,
+    hash_file, hashes_equal, is_hidden_path, read_file_to_bytes,
 };
 mod inotify_watcher;
 use inotify_watcher::*;
@@ -891,6 +891,10 @@ pub async fn update_save_map() {
 
         for entry in save_files {
             if let Ok(path) = entry {
+                if is_hidden_path(&path) {
+                    continue;
+                }
+
                 if path.is_file() {
                     let file_name = path
                         .file_name()

@@ -1,4 +1,4 @@
-use mister_save_utils::SaveFileType;
+use mister_save_utils::{SaveFileType, is_hidden_path};
 use notify_debouncer_full::{new_debouncer, notify::RecursiveMode};
 use std::{path::Path, time::Duration};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -59,13 +59,14 @@ pub async fn watch<P: AsRef<Path>>(path: P, save_type: SaveFileType) -> notify::
                 for event in events {
                     match &event.kind {
                         notify::EventKind::Create(_) => {
-                            println!("File created: {:?}", event.paths);
-
                             if save_type == SaveFileType::CoreWatch {
                                 continue;
                             }
 
                             for path in &event.paths {
+                                if is_hidden_path(&path) {
+                                    continue;
+                                }
                                 handle_file_event(save_type.clone(), path.clone()).await;
                             }
                         }
@@ -76,6 +77,9 @@ pub async fn watch<P: AsRef<Path>>(path: P, save_type: SaveFileType) -> notify::
                             }
 
                             for path in &event.paths {
+                                if is_hidden_path(&path) {
+                                    continue;
+                                }
                                 handle_file_event(save_type.clone(), path.clone()).await;
                             }
                         }

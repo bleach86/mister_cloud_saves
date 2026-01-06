@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -71,13 +72,13 @@ pub struct UploadSaveRequest {
     pub user_id: String,
 }
 
-pub async fn read_file_to_bytes(path: &PathBuf) -> std::io::Result<Vec<u8>> {
+pub async fn read_file_to_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
     let file_bytes = tokio::fs::read(path).await?;
     Ok(file_bytes)
 }
 
 pub async fn hash_file(
-    path: &PathBuf,
+    path: &Path,
     file_data: Option<&[u8]>,
 ) -> Result<u64, Box<dyn std::error::Error>> {
     let file_bytes = match file_data {
@@ -91,4 +92,14 @@ pub async fn hash_file(
 
 pub fn hashes_equal(hash1: u64, hash2: u64) -> bool {
     hash1 == hash2
+}
+
+pub fn is_hidden_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        if let std::path::Component::Normal(os_str) = component {
+            os_str.as_bytes().starts_with(b".")
+        } else {
+            false
+        }
+    })
 }
