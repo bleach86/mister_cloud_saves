@@ -45,9 +45,6 @@ async fn main() {
     wait_for_network().await;
 
     update_save_map().await;
-
-    std::process::exit(0);
-
     let _ = sync_saves().await;
 
     if IS_ONE_SHOT.lock().await.clone() == true {
@@ -860,8 +857,8 @@ async fn upload_file(
 pub async fn update_save_map() {
     let save_types: Vec<SaveFileType> = vec![
         SaveFileType::GameSave,
-        //SaveFileType::SaveState,
-        //SaveFileType::NvRam,
+        SaveFileType::SaveState,
+        SaveFileType::NvRam,
     ];
     let save_map_path = PathBuf::from(SAVE_MAP_PATH);
 

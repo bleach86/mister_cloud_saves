@@ -59,8 +59,6 @@ pub async fn watch<P: AsRef<Path>>(path: P, save_type: SaveFileType) -> notify::
                 for event in events {
                     match &event.kind {
                         notify::EventKind::Create(_) => {
-                            println!("File created: {:?}", event.paths);
-
                             if save_type == SaveFileType::CoreWatch {
                                 continue;
                             }
