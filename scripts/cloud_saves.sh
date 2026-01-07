@@ -33,7 +33,13 @@ DEFAULT_SERVER_URL = "https://mister-cloud-saves.tuxprint.com"
 GH_REPO_API_URL = (
     "https://api.github.com/repos/bleach86/mister_cloud_saves/releases/latest"
 )
-SCRIPT_RAW_URL = "https://raw.githubusercontent.com/bleach86/mister_cloud_saves/refs/heads/main/scripts/cloud_saves.sh"
+
+RAW_URL_BASE = "https://raw.githubusercontent.com/bleach86/mister_cloud_saves"
+SCRIPT_RAW_URL = f"{RAW_URL_BASE}/refs/heads/main/scripts/cloud_saves.sh"
+UPDATE_DB_RAW_URL = (
+    f"{RAW_URL_BASE}_update_db/refs/heads/main/mister_cloud_saves_db.json"
+)
+LAUNCHER_SCRIPT_URL = f"{RAW_URL_BASE}/refs/heads/main/scripts/cloud_saves_launcher.sh"
 MISTER_PATH = "/media/fat"
 CLIENT_DIR = os.path.join(MISTER_PATH, "cloud_saves")
 MISTER_LINUX_DIR = os.path.join(MISTER_PATH, "linux/")
@@ -153,7 +159,7 @@ def is_client_installed():
     return os.path.isfile(client_bin) and os.path.isfile(ini_file)
 
 
-def get_latest_release_url():
+def get_tag_and_latest_release_url():
     """
     Gets the latest release download URL from GitHub.
 
@@ -163,21 +169,42 @@ def get_latest_release_url():
     response = requests.get(GH_REPO_API_URL, timeout=30)
     if response.status_code == 200:
         data = response.json()
+        tag_name = data.get("tag_name", "unknown")
+
         for asset in data.get("assets", []):
             if asset.get("name") == "client.tar.xz":
-                return asset.get("browser_download_url")
+                return (asset.get("browser_download_url"), tag_name)
 
     print("Error fetching latest release info")
     sys.exit(1)
 
 
-def fetch_client():
+def fetch_launcher_script():
+    """
+    Downloads the Mister Cloud Saves Launcher Script.
+    """
+    print("Downloading Mister Cloud Saves Launcher Script...")
+
+    response = requests.get(LAUNCHER_SCRIPT_URL, timeout=30)
+    if response.status_code == 200:
+        with open(
+            os.path.join(CLIENT_DIR, "cloud_saves_launcher.sh"),
+            "wb",
+        ) as file:
+            file.write(response.content)
+    else:
+        print("Error downloading launcher script")
+        sys.exit(1)
+
+
+def fetch_client(download_url=None):
     """
     Downloads the Mister Cloud Saves Client.
     """
     print("Downloading Mister Cloud Saves Client...")
 
-    download_url = get_latest_release_url()
+    if download_url is None:
+        download_url, _ = get_tag_and_latest_release_url()
 
     response = requests.get(download_url, timeout=30)
     if response.status_code == 200:
@@ -189,6 +216,30 @@ def fetch_client():
     else:
         print("Error downloading client")
         sys.exit(1)
+
+
+def get_client_version():
+    """
+    Gets the installed Mister Cloud Saves Client version.
+
+    :return: Version string
+    """
+
+    client_bin = os.path.join(CLIENT_DIR, "mister_save_client")
+
+    if not os.path.isfile(client_bin):
+        return "not installed"
+
+    result = subprocess.run(
+        [client_bin, "--version"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    version = result.stdout.strip().split()[-1]
+
+    return version
 
 
 def extract_client():
@@ -255,7 +306,32 @@ def update_user_scripts_install():
         )
 
     with open(script_path, "a", encoding="utf-8") as file:
-        file.write(f"\n{CLIENT_DIR}/mister_save_client &\n")
+        file.write(f"\n{CLIENT_DIR}/cloud_saves_launcher.sh\n")
+
+
+def update_user_scripts_migrate():
+    """
+    Migrates user-startup.sh to ensure Mister Cloud Saves Client using the current command
+    """
+    print(
+        "Migrating user-startup.sh to ensure Mister Cloud Saves Client uses the correct command..."
+    )
+
+    script_path = os.path.join(MISTER_LINUX_DIR, "user-startup.sh")
+
+    legacy_command = f"{CLIENT_DIR}/mister_save_client &"
+    current_command = f"{CLIENT_DIR}/cloud_saves_launcher.sh"
+
+    if os.path.isfile(script_path):
+        with open(script_path, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+
+        with open(script_path, "w", encoding="utf-8") as file:
+            for line in lines:
+                if legacy_command in line:
+                    file.write(line.replace(legacy_command, current_command))
+                else:
+                    file.write(line)
 
 
 def update_user_scripts_remove():
@@ -274,6 +350,69 @@ def update_user_scripts_remove():
             for line in lines:
                 if CLIENT_DIR not in line:
                     file.write(line)
+
+
+def get_downloader_ini():
+    """
+    Reads the downloader.ini file
+
+    :return: ConfigParser object with loaded downloader config
+    """
+
+    config = configparser.ConfigParser()
+    config.read(os.path.join(MISTER_PATH, "downloader.ini"))
+    return config
+
+
+def add_to_updater_if_needed():
+    """
+    Adds Mister Cloud Saves database update to downloader.ini if not already present.
+    """
+
+    config = get_downloader_ini()
+
+    if "mister_cloud_saves" not in config.sections():
+        print("Adding Mister Cloud Saves database update to downloader.ini...")
+
+        config["mister_cloud_saves"] = {}
+        config["mister_cloud_saves"]["db_url"] = UPDATE_DB_RAW_URL
+
+        with open(
+            os.path.join(MISTER_PATH, "downloader.ini"),
+            "w",
+            encoding="utf-8",
+        ) as configfile:
+            config.write(configfile)
+
+
+def remove_from_updater():
+    """
+    Removes Mister Cloud Saves database update from downloader.ini if present.
+    """
+
+    config = get_downloader_ini()
+
+    if "mister_cloud_saves" in config.sections():
+        print("Removing Mister Cloud Saves database update from downloader.ini...")
+
+        config.remove_section("mister_cloud_saves")
+
+        with open(
+            os.path.join(MISTER_PATH, "downloader.ini"),
+            "w",
+            encoding="utf-8",
+        ) as configfile:
+            config.write(configfile)
+
+
+def create_updates_dir_if_needed():
+    """
+    Creates the updates directory if it does not exist.
+    """
+
+    updates_dir = os.path.join(CLIENT_DIR, "updates")
+    if not os.path.isdir(updates_dir):
+        os.makedirs(updates_dir)
 
 
 def save_client_pid():
@@ -317,6 +456,7 @@ def install():
     print("Installing Mister Cloud Saves Client...")
 
     stop_client_process()
+    fetch_launcher_script()
     fetch_client()
     extract_client()
 
@@ -328,6 +468,9 @@ def install():
         print("Configuration file already exists. Skipping creation.")
 
     update_user_scripts_install()
+    create_updates_dir_if_needed()
+    add_to_updater_if_needed()
+
     run_initial_sync()
     reboot_system()
 
@@ -339,6 +482,7 @@ def uninstall():
     print("Uninstalling Mister Cloud Saves Client...")
 
     update_user_scripts_remove()
+    remove_from_updater()
     stop_client_process()
 
     if os.path.isdir(CLIENT_DIR):
@@ -404,11 +548,29 @@ def update():
     Updates the Mister Cloud Saves Client.
     """
 
-    print("Updating Mister Cloud Saves Client...")
+    print("Checking for Mister Cloud Saves Client updates...")
+
+    current_version = get_client_version()
+    client_download_url, latest_version = get_tag_and_latest_release_url()
+    print(f"Current installed version: {current_version}")
+    print(f"Latest available version: {latest_version}")
+
+    # Ensure the updates directory exists and the updater is configured
+    add_to_updater_if_needed()
+    create_updates_dir_if_needed()
+    update_user_scripts_migrate()
+
+    fetch_launcher_script()
+
+    if current_version == latest_version:
+        print("Mister Cloud Saves Client is already up to date.")
+        return
+
+    print("Updating to the latest version...")
 
     stop_client_process()
 
-    fetch_client()
+    fetch_client(client_download_url)
     extract_client()
 
     run_initial_sync()
