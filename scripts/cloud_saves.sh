@@ -39,7 +39,7 @@ SCRIPT_RAW_URL = f"{RAW_URL_BASE}/refs/heads/main/scripts/cloud_saves.sh"
 UPDATE_DB_RAW_URL = (
     f"{RAW_URL_BASE}_update_db/refs/heads/main/mister_cloud_saves_db.json"
 )
-LAUNCHER_SCRIPT_URL = f"{RAW_URL_BASE}/refs/heads/main/scripts/cloud_saves_launcher.sh"
+LAUNCHER_SCRIPT_URL = "https://raw.githubusercontent.com/bleach86/mister_cloud_saves/a095cef07e6fd0f01c1874a56881e8d978f09438/scripts/cloud_saves_launcher.sh"  # f"{RAW_URL_BASE}/refs/heads/main/scripts/cloud_saves_launcher.sh"
 MISTER_PATH = "/media/fat"
 CLIENT_DIR = os.path.join(MISTER_PATH, "cloud_saves")
 MISTER_LINUX_DIR = os.path.join(MISTER_PATH, "linux/")
@@ -558,6 +558,7 @@ def update():
     # Ensure the updates directory exists and the updater is configured
     add_to_updater_if_needed()
     create_updates_dir_if_needed()
+    update_user_scripts_migrate()
 
     fetch_launcher_script()
 
