@@ -70,7 +70,9 @@ After the initial setup, the `mister_save_client` will automatically run in the 
 
 ## Updating
 
-To update to the latest version, simply run the `cloud_saves` script again from the MiSTer menu. When prompted, choose the update option. The script will download and install the latest version of the client and perform a sync.
+Mister Cloud Saves is updated using the `update` or `update_all` script from the MiSTer Scripts menu.
+
+An update can also be preformed by running the `cloud_saves` script again from the MiSTer menu. When prompted, choose the update option. The script will download and install the latest version of the client and perform a sync.
 
 ## Uninstallation
 
