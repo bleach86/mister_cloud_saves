@@ -449,6 +449,25 @@ def stop_client_process():
         pass
 
 
+def change_server():
+    """
+    Changes the server URL in the configuration file.
+    """
+
+    stop_client_process()
+
+    if is_config_existing():
+        config_path = os.path.join(MISTER_PATH, "cloud_saves.ini")
+        os.remove(config_path)
+
+    server_url = get_server_url()
+    user_id = get_user_id(server_url)
+    create_config(user_id, server_url)
+
+    run_initial_sync()
+    reboot_system()
+
+
 def install():
     """
     The installer function for Mister Cloud Saves Client.
@@ -596,9 +615,10 @@ if __name__ == "__main__":
                 print("1. Install")
                 print("2. Update")
                 print("3. Uninstall")
-                print("4. Exit")
+                print("4. Change Server")
+                print("5. Exit")
 
-                choice = input("Enter choice (1|2|3|4): ").strip()
+                choice = input("Enter choice (1|2|3|4|5): ").strip()
 
                 if choice == "1":
                     ACTION = "--install"
@@ -607,10 +627,12 @@ if __name__ == "__main__":
                 elif choice == "3":
                     ACTION = "--uninstall"
                 elif choice == "4":
+                    ACTION = "--change-server"
+                elif choice == "5":
                     print("Exiting.")
                     sys.exit(0)
                 else:
-                    print("Invalid choice. Please enter 1, 2, 3, or 4.")
+                    print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
                     continue
                 break
 
@@ -623,6 +645,10 @@ if __name__ == "__main__":
         update()
     elif ACTION.lower() == "--uninstall":
         uninstall()
+    elif ACTION.lower() == "--change-server":
+        change_server()
     else:
-        print("Invalid action. Use '--install', '--update', or '--uninstall'.")
+        print(
+            "Invalid action. Use '--install', '--update', '--uninstall', or '--change-server'."
+        )
         sys.exit(1)
