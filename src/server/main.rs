@@ -11,8 +11,12 @@ use tokio::fs::File;
 use uuid::Uuid;
 
 mod database;
+mod retroarch_dav;
 
 use database::Database;
+use retroarch_dav::{
+    delete_dav_file, get_dav_file, mkcol, move_dav_file, options_root, options_sub, put_dav_file,
+};
 
 use mister_save_utils::{FetchSaveRequest, SaveFile, SaveFileType, UserSaveData};
 
@@ -188,7 +192,14 @@ fn rocket() -> _ {
             upload_save,
             fetch_save,
             fetch_user_data,
-            health
+            health,
+            options_root,
+            options_sub,
+            get_dav_file,
+            mkcol,
+            put_dav_file,
+            delete_dav_file,
+            move_dav_file
         ],
     )
 }

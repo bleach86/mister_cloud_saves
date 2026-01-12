@@ -4,6 +4,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use xxhash_rust::xxh3::xxh3_64;
 
+pub mod rzip;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SaveFileType {
     GameSave,
