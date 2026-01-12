@@ -180,43 +180,6 @@ pub async fn get_dav_file(path: PathBuf, auth: BasicAuth) -> Result<Vec<u8>, Sta
         }
     };
 
-    let test_file_path = PathBuf::from("storage/alice/states/game_demo-2024-10-28_09.05.16.mp4");
-
-    let test_bytes = match read_file_to_bytes(&test_file_path).await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            println!("Failed to read test file: {:?}", e);
-            return Err(Status::InternalServerError);
-        }
-    };
-
-    let md5_hash = format!("{:x}", md5::compute(&test_bytes));
-    println!("MD5 hash of test file: {}", md5_hash);
-
-    match RzipStream::new(test_bytes.clone()).await {
-        Ok(mut zip_stream) => match zip_stream.deflate_file().await {
-            Ok(_) => match zip_stream.inflate_file().await {
-                Ok(inflated_bytes) => {
-                    let deflated_md5 = format!("{:x}", md5::compute(&inflated_bytes));
-
-                    println!("MD5 hash of inflated bytes: {}", deflated_md5);
-                }
-                Err(e) => {
-                    println!("Failed to inflate RzipStream: {:?}", e);
-                    return Err(Status::InternalServerError);
-                }
-            },
-            Err(e) => {
-                println!("Failed to deflate RzipStream: {:?}", e);
-                return Err(Status::InternalServerError);
-            }
-        },
-        Err(e) => {
-            println!("Failed to create RzipStream: {:?}", e);
-            return Err(Status::InternalServerError);
-        }
-    };
-
     Ok(file_bytes)
 }
 
