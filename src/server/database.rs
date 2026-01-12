@@ -1,6 +1,6 @@
 use mister_save_utils::{SaveFile, SaveFileType, UserSaveData};
-
 use sled::{Db, Tree};
+
 #[allow(dead_code)]
 pub struct Database {
     db: Db,
