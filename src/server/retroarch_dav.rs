@@ -205,6 +205,21 @@ pub async fn put_dav_file(path: PathBuf, data: Vec<u8>, auth: BasicAuth) -> Stat
 #[delete("/retroarch/<path..>")]
 pub async fn delete_dav_file(path: PathBuf, auth: BasicAuth) -> Status {
     let full_path = safe_path(path, &auth.username);
+
+    if !full_path.exists() {
+        return Status::NotFound;
+    }
+
+    if full_path.is_dir() {
+        match fs::remove_dir_all(&full_path).await {
+            Ok(_) => return Status::Ok,
+            Err(e) => {
+                println!("Failed to delete directory: {:?}", e);
+                return Status::InternalServerError;
+            }
+        }
+    }
+
     match fs::remove_file(&full_path).await {
         Ok(_) => Status::Ok,
         Err(e) => {
